@@ -1,12 +1,12 @@
-# @title 🚀 Run Generator (Render Compatible)
+# @title 🚀 Run Generator (Render Compatible - Logic Unchanged)
 import requests
 import random
 import threading
 import time
 import warnings
 import logging
-import os
-from flask import Flask
+import os # Added for Render PORT
+from flask import Flask # Added for Render Web Service
 from concurrent.futures import ThreadPoolExecutor
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -26,7 +26,7 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR) # Hide Flask logs
 # Render provides the PORT env var. Default to 10000 if local.
 PORT = int(os.environ.get("PORT", 10000))
 
-PREFIXES = [94718, 78359, 77668, 93135, 97161, 62092, 90157, 78277, 88513, 99109]
+PREFIXES = [94718, 78359, 77668, 93135, 97161, 62092, 90157, 78277, 88513, 99104, 98916,74799, 70114, 92679, 99104, 87894, 87578]
 API_URL = "https://api.x10.network/numapi.php"
 API_KEY = "num_devil"
 
@@ -49,7 +49,7 @@ USER_AGENTS = [
 # 🔌 ROBUST SETUP
 # ------------------------------------------------------------------
 
-# 1. Setup Session
+# 1. Setup Session with Retry & Increased Pool Size
 session = requests.Session()
 retry_strategy = Retry(
     total=3,
@@ -125,6 +125,7 @@ def process_pipeline(thread_id):
             if isinstance(data, list):
                 results = data
             elif isinstance(data, dict):
+                # If it's a dict, check if it's an error or actual data
                 if data.get('error') or data.get('response') == 'error':
                     results = []
                 else:
@@ -141,19 +142,23 @@ def process_pipeline(thread_id):
                 found_valid_data = False
 
                 for p in results:
+                    # --- CRITICAL FIX: SKIP EMPTY/N/A DATA ---
                     raw_name = p.get("name")
-                    # SKIP IF NAME IS INVALID
-                    if not raw_name or str(raw_name).strip() == "" or str(raw_name).strip() == "N/A":
-                        continue 
 
+                    # If name is None, Empty String, or explicitly "N/A" -> SKIP
+                    if not raw_name or str(raw_name).strip() == "" or str(raw_name).strip() == "N/A":
+                        continue # Skip this iteration, do not save
+
+                    # If we passed the check, mark that we found something
                     found_valid_data = True
 
+                    # Prepare Data
                     raw_address = str(p.get("address", "N/A"))
                     clean_address = raw_address.replace("!", ", ").replace(" ,", ",").strip()
                     if len(clean_address) > 250: clean_address = clean_address[:250]
 
                     record = {
-                        'name': str(raw_name),
+                        'name': str(raw_name), # We know this is valid now
                         'fname': str(p.get("father_name", "N/A")),
                         'mobile': str(p.get("mobile", mobile_number)),
                         'address': clean_address
@@ -168,8 +173,9 @@ def process_pipeline(thread_id):
                         with stats_lock: stats["duplicates"] += 1
                         print(f"🔁 [{curr_total}] EXISTS | {record['mobile']}")
 
+                # If we had results (list was not empty), but all were N/A/Empty
                 if not found_valid_data:
-                     print(f"⚠️ [{curr_total}] Skipped (N/A) | {mobile_number}")
+                     print(f"⚠️ [{curr_total}] Skipped (Data was empty/N/A) | {mobile_number}")
 
             else:
                 print(f"❌ [{curr_total}] Not Found | {mobile_number}")
@@ -177,9 +183,11 @@ def process_pipeline(thread_id):
         except requests.exceptions.Timeout:
             print(f"⏳ [{thread_id}] Slow Network... Waiting 5s")
             time.sleep(5)
+
         except requests.exceptions.ConnectionError:
             print(f"🔌 [{thread_id}] Connection Lost... Waiting 10s")
             time.sleep(10)
+
         except Exception as e:
             with stats_lock: stats["errors"] += 1
             print(f"⚠️ Error: {str(e)[:50]}")
@@ -188,7 +196,7 @@ def process_pipeline(thread_id):
         time.sleep(1.5)
 
 # ------------------------------------------------------------------
-# 🌐 FLASK SERVER (Required for Render)
+# 🌐 FLASK SERVER (Render Requirement)
 # ------------------------------------------------------------------
 app = Flask(__name__)
 
@@ -198,15 +206,14 @@ def home():
         return f"Worker Active. Total Scanned: {stats['total']} | Success: {stats['success']}"
 
 def run_scraper_background():
-    print(f"🔥 Starting {CONCURRENT_THREADS} Pipelines in Background...")
+    print(f"🔥 Starting {CONCURRENT_THREADS} Pipelines (Fixed N/A Handling)...")
     with ThreadPoolExecutor(max_workers=CONCURRENT_THREADS) as executor:
         for i in range(CONCURRENT_THREADS):
             executor.submit(process_pipeline, i+1)
 
 if __name__ == "__main__":
-    # 1. Start Scraper in a separate thread
+    # 1. Start Scraper in a background thread
     threading.Thread(target=run_scraper_background, daemon=True).start()
     
-    # 2. Start Flask Server (Blocks main thread, satisfies Render)
-    print(f"🌍 Web Server starting on port {PORT}...")
+    # 2. Start Web Server (Blocks main thread to keep Render happy)
     app.run(host="0.0.0.0", port=PORT)

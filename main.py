@@ -1,12 +1,11 @@
-# @title 🚀 Run Generator (Render Compatible - Logic Unchanged)
 import requests
 import random
 import threading
 import time
 import warnings
 import logging
-import os # Added for Render PORT
-from flask import Flask # Added for Render Web Service
+import os
+from flask import Flask
 from concurrent.futures import ThreadPoolExecutor
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -18,15 +17,14 @@ from appwrite.services.databases import Databases
 # ------------------------------------------------------------------
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
-logging.getLogger("werkzeug").setLevel(logging.ERROR) # Hide Flask logs
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 # ------------------------------------------------------------------
 # ⚙️ CONFIGURATION
 # ------------------------------------------------------------------
-# Render provides the PORT env var. Default to 10000 if local.
 PORT = int(os.environ.get("PORT", 10000))
 
-PREFIXES = [94718, 78359, 77668, 93135, 97161, 62092, 90157, 78277, 88513, 99104, 98916,74799, 70114, 92679, 99104, 87894, 87578]
+PREFIXES = [94718, 78359, 77668, 93135, 97161, 62092, 90157, 78277, 88513, 99104, 98916, 74799, 70114, 92679, 99104, 87894, 87578]
 API_URL = "https://api.x10.network/numapi.php"
 API_KEY = "num_devil"
 
@@ -48,8 +46,6 @@ USER_AGENTS = [
 # ------------------------------------------------------------------
 # 🔌 ROBUST SETUP
 # ------------------------------------------------------------------
-
-# 1. Setup Session with Retry & Increased Pool Size
 session = requests.Session()
 retry_strategy = Retry(
     total=3,
@@ -64,7 +60,6 @@ adapter = HTTPAdapter(
 session.mount("https://", adapter)
 session.mount("http://", adapter)
 
-# 2. Appwrite Setup
 client = Client()
 client.set_endpoint(APPWRITE_ENDPOINT)
 client.set_project(APPWRITE_PROJECT_ID)
@@ -125,7 +120,6 @@ def process_pipeline(thread_id):
             if isinstance(data, list):
                 results = data
             elif isinstance(data, dict):
-                # If it's a dict, check if it's an error or actual data
                 if data.get('error') or data.get('response') == 'error':
                     results = []
                 else:
@@ -133,7 +127,6 @@ def process_pipeline(thread_id):
             else:
                 results = []
 
-            # Update Stats Total
             with stats_lock:
                 stats["total"] += 1
                 curr_total = stats["total"]
@@ -142,24 +135,35 @@ def process_pipeline(thread_id):
                 found_valid_data = False
 
                 for p in results:
-                    # --- CRITICAL FIX: SKIP EMPTY/N/A DATA ---
-                    raw_name = p.get("name")
+                    # -------------------------------------------------------
+                    # 🛡️ UPDATED: STRICT "N/A" FILTER FOR ALL FIELDS
+                    # -------------------------------------------------------
+                    
+                    # 1. Get Values safely
+                    raw_name = str(p.get("name", "")).strip()
+                    raw_fname = str(p.get("father_name", "")).strip()
+                    raw_address = str(p.get("address", "")).strip()
 
-                    # If name is None, Empty String, or explicitly "N/A" -> SKIP
-                    if not raw_name or str(raw_name).strip() == "" or str(raw_name).strip() == "N/A":
-                        continue # Skip this iteration, do not save
+                    # 2. Define what counts as "Empty" or "Bad Data"
+                    bad_values = ["", "N/A", "n/a", "None", "null", "NULL"]
 
-                    # If we passed the check, mark that we found something
+                    # 3. Check Name, Father Name, AND Address
+                    # If ANY of these are in the bad_values list, we SKIP the record.
+                    if (raw_name in bad_values) or (raw_fname in bad_values) or (raw_address in bad_values):
+                        continue  # Skip this loop iteration immediately
+                    
+                    # -------------------------------------------------------
+                    # ✅ DATA IS CLEAN
+                    # -------------------------------------------------------
                     found_valid_data = True
 
-                    # Prepare Data
-                    raw_address = str(p.get("address", "N/A"))
+                    # Clean Address formatting for storage
                     clean_address = raw_address.replace("!", ", ").replace(" ,", ",").strip()
                     if len(clean_address) > 250: clean_address = clean_address[:250]
 
                     record = {
-                        'name': str(raw_name), # We know this is valid now
-                        'fname': str(p.get("father_name", "N/A")),
+                        'name': raw_name,
+                        'fname': raw_fname,
                         'mobile': str(p.get("mobile", mobile_number)),
                         'address': clean_address
                     }
@@ -173,9 +177,8 @@ def process_pipeline(thread_id):
                         with stats_lock: stats["duplicates"] += 1
                         print(f"🔁 [{curr_total}] EXISTS | {record['mobile']}")
 
-                # If we had results (list was not empty), but all were N/A/Empty
                 if not found_valid_data:
-                     print(f"⚠️ [{curr_total}] Skipped (Data was empty/N/A) | {mobile_number}")
+                     print(f"⚠️ [{curr_total}] Skipped (Data contained N/A) | {mobile_number}")
 
             else:
                 print(f"❌ [{curr_total}] Not Found | {mobile_number}")
@@ -192,11 +195,10 @@ def process_pipeline(thread_id):
             with stats_lock: stats["errors"] += 1
             print(f"⚠️ Error: {str(e)[:50]}")
 
-        # Throttle
         time.sleep(1.5)
 
 # ------------------------------------------------------------------
-# 🌐 FLASK SERVER (Render Requirement)
+# 🌐 FLASK SERVER
 # ------------------------------------------------------------------
 app = Flask(__name__)
 
@@ -212,8 +214,5 @@ def run_scraper_background():
             executor.submit(process_pipeline, i+1)
 
 if __name__ == "__main__":
-    # 1. Start Scraper in a background thread
     threading.Thread(target=run_scraper_background, daemon=True).start()
-    
-    # 2. Start Web Server (Blocks main thread to keep Render happy)
     app.run(host="0.0.0.0", port=PORT)

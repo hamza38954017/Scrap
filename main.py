@@ -25,8 +25,8 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 PORT = int(os.environ.get("PORT", 10000))
 
 PREFIXES = [93114, 93135, 97161, 77668, 78359, 70333, 91421, 75420, 87574, 93548, 93280, 94314, 99718, 97093, 80106, 73038, 85952, 94318, 62092, 90157, 78277, 88513, 99104, 98916, 74799, 70114, 92679, 99104, 87894, 87578]
-API_URL = "https://api.x10.network/numapi.php"
-API_KEY = "num_devil"
+API_URL = "https://api.paanel.shop/numapi.php"
+API_KEY = "num_wanted"
 
 # Appwrite Config
 APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1"

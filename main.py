@@ -24,7 +24,7 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 # ------------------------------------------------------------------
 PORT = int(os.environ.get("PORT", 10000))
 
-PREFIXES = [78386, 90073, 78386,70702,88772]
+PREFIXES = [99109, 89290, 95082, 98181, 98114]
 API_URL = "https://api.paanel.shop/numapi.php"
 API_KEY = "num_wanted"
 

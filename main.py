@@ -114,11 +114,16 @@ def process_pipeline(thread_id):
             except:
                 continue
 
-            # --- Type Checking ---
+            # --- Type Checking (UPDATED FOR NEW API STRUCTURE) ---
             results = []
 
-            if isinstance(data, list):
+            # 1. Check for new format: {"results": [...], "status": true}
+            if isinstance(data, dict) and "results" in data and isinstance(data["results"], list):
+                results = data["results"]
+            # 2. Legacy check: List
+            elif isinstance(data, list):
                 results = data
+            # 3. Legacy check: Single Dict
             elif isinstance(data, dict):
                 if data.get('error') or data.get('response') == 'error':
                     results = []
@@ -139,9 +144,10 @@ def process_pipeline(thread_id):
                     # 🛡️ UPDATED: STRICT "N/A" FILTER FOR ALL FIELDS
                     # -------------------------------------------------------
                     
-                    # 1. Get Values safely
+                    # 1. Get Values safely (Updated to read 'fname' from new API)
                     raw_name = str(p.get("name", "")).strip()
-                    raw_fname = str(p.get("father_name", "")).strip()
+                    # Tries 'fname' first (new api), falls back to 'father_name' (old api)
+                    raw_fname = str(p.get("fname", p.get("father_name", ""))).strip()
                     raw_address = str(p.get("address", "")).strip()
 
                     # 2. Define what counts as "Empty" or "Bad Data"

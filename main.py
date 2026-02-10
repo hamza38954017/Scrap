@@ -27,7 +27,7 @@ PORT = int(os.environ.get("PORT", 10000))
 PREFIXES = [99109, 89290, 95082, 98181, 98114]
 # Updated API Endpoint and Key based on your request
 API_URL = "https://api.paanel.shop/numapi.php" 
-API_KEY = "ajdkosns"
+API_KEY = "ahsjyash"
 
 # Appwrite Config
 APPWRITE_ENDPOINT = "https://fra.cloud.appwrite.io/v1"
